@@ -1,0 +1,27 @@
+# Default values for shopnow.
+
+backend:
+  name: backend
+  image: backend:latest
+  port: 5000
+  replicaCount: 1
+
+frontend:
+  name: frontend
+  image: frontend:latest
+  port: 80
+  replicaCount: 1
+
+admin:
+  name: admin
+  image: admin:latest
+  port: 80
+  replicaCount: 1
+
+mongodb:
+  name: mongodb
+  image: mongo:6.0
+  port: 27107
+  uri: "mongodb://mongodb-service:27017/shopnow"
+
+namespace: shopnow
