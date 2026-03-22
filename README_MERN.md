@@ -23,8 +23,16 @@ To prepare the application for Kubernetes, several changes were made to the orig
 - **Decision**: Created a Helm chart in `charts/shopnow` to manage all components together.
 - **Why**: Helm allows for versioned, reproducible deployments and separates configuration (`values.yaml`) from the actual manifests.
 - **Components**: MongoDB, Backend, Frontend, and Admin.
-
 ---
+![alt](<screenshots/image copy.png>)
+
+![alt](<screenshots/image.png>)
+
+![alt](<screenshots/image copy 2.png>)
+
+![alt](<screenshots/image copy 3.png>)
+
+![alt](<screenshots/image copy 4.png>)
 
 ## 2. Jenkins CI/CD Setup Guide
 
@@ -47,9 +55,49 @@ Follow these steps to deploy this application using Jenkins on your local machin
    - Repository URL: Path to this local folder (or your GitHub repo).
    - Branch Specifier: `*/main` (or your active branch).
    - Script Path: `Jenkinsfile`.
-3. **Credentials**:
+3. **Credentials & Permissions**:
    - If deploying to a local KIND cluster from the same machine, Jenkins usually doesn't need extra credentials as long as it can access the `~/.kube/config` and the `docker` socket.
-   - **Important**: Ensure the Jenkins user has permission to run `docker` commands (`sudo usermod -aG docker jenkins`).
+   - **Important**: Ensure the Jenkins user has permission to run `docker` commands and access Kubernetes.
+
+![alt](<screenshots/image copy 5.png>)
+
+### Required Jenkins Permissions Setup
+
+Before running the pipeline, you must configure permissions for Jenkins to access Docker and Kubernetes. Run these commands on your Jenkins server:
+
+#### 1. Docker Permission Setup
+```bash
+# Add Jenkins user to the docker group
+sudo usermod -aG docker jenkins
+```
+
+#### 2. Kubernetes (kubectl) Permission Setup
+Jenkins needs access to the kubeconfig file to communicate with your Kubernetes cluster:
+```bash
+# Create .kube directory for Jenkins
+sudo mkdir -p /var/lib/jenkins/.kube
+
+# Copy your kubeconfig file (replace /home/bharathrm with your username)
+sudo cp /home/bharathrm/.kube/config /var/lib/jenkins/.kube/config
+
+# Set proper ownership
+sudo chown -R jenkins:jenkins /var/lib/jenkins/.kube
+
+# Set proper permissions (read/write for owner only)
+sudo chmod 600 /var/lib/jenkins/.kube/config
+```
+
+#### 3. Restart Jenkins
+```bash
+# Restart Jenkins to apply the permission changes
+sudo systemctl restart jenkins
+```
+![alt](<screenshots/image copy 6.png>)
+
+
+**Troubleshooting**:
+- If you get `permission denied while trying to connect to the Docker API`, Docker permissions are not configured correctly.
+- If you get `Authentication required` when running kubectl commands, the kubeconfig is missing or not accessible.
 4. **Environment Variables**:
    - The `Jenkinsfile` already sets up the `NAMESPACE` and `KUBECONFIG` environment. Ensure the path to your kubeconfig is correct in the `Jenkinsfile`.
 
@@ -69,10 +117,44 @@ After the Jenkins pipeline finishes, verify the deployment:
 kubectl get pods -n shopnow
 
 # Forward ports to access the UIs
+Explanation of kubectl port-forward
+The code in question are Kubernetes port forwarding commands:
+
 kubectl port-forward svc/frontend-service -n shopnow 8085:80
 kubectl port-forward svc/admin-service -n shopnow 8081:80
+
+![alt](<screenshots/image copy 7.png>)
+
+![alt](<screenshots/image copy 8.png>)
+
+# Purpose and Functionality
+kubectl port-forward creates a tunnel between your local machine and a Kubernetes service, enabling access to internal services that aren't exposed externally.
+
+# Key Components
+1. kubectl port-forward - The Kubernetes CLI command to forward local ports to pod/service ports
+2. svc/frontend-service / svc/admin-service - Target Kubernetes Services in the shopnow namespace
+3. -n shopnow - Specifies the namespace where the services reside
+4. 8085:80 / 8081:80 - Local port mapping format: local_port:service_port
+
+# Why Port Forwarding is Needed
+1. Internal Services: Kubernetes services are internal by default; they don't expose external IPs
+2. Security: Limiting exposure to only necessary ports reduces attack surface
+3. Development/Testing: Allows developers to access services locally without configuring Ingress/LoadBalancers
+4. No Cloud Provider Required: Works without cloud-native networking features (like AWS ELB or GCP Load Balancing)
+
+# Pattern Used
+This follows the local-port-forwarding pattern where:
+
+8085 (local) → routes to frontend-service:80 (cluster)
+8081 (local) → routes to admin-service:80 (cluster)
+After running these commands, you can access:
+
+Frontend: http://localhost:8085
+Admin UI: http://localhost:8081
+
 ```
 
 - **Frontend**: [http://localhost:8085](http://localhost:8085)
 - **Admin**: [http://localhost:8081](http://localhost:8081)
-- **API Health**: [http://localhost:5000/api/health](http://localhost:5000/api/health) (if forwarded)
+
+# This concludes the deployment of the entire MERN app on the kubernetes cluster using Jenkins CI/CD pipeline entirely locally on KIND cluster.
